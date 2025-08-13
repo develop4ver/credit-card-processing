@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Credit Card System</title>
+  <style>
+    /* General layout */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background-color: #ffffff;
+    }
+    h1 {
+      margin-top: 0;
+      margin-bottom: 1.5rem;
+      font-size: 2rem;
+    }
+    h2 {
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+    }
+    /* Form styling */
+    .form-field {
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-weight: 600;
+    }
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      max-width: 400px;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 4px;
+      background-color: #007bff;
+      color: #fff;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .error {
+      color: #dc3545;
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+    /* Table styling */
+    table {
+      width: 100%;
+      max-width: 900px;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      padding: 0.75rem;
+      border: 1px solid #dddddd;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .negative {
+      color: #dc3545;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <!-- React and ReactDOM via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js" crossorigin></script>
+  <!-- Babel for JSX transformation in the browser -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.5/babel.min.js" crossorigin></script>
+  <script type="text/babel">
+    // Luhn algorithm as before
+    function luhnCheck(value) {
+      const sanitized = value.replace(/[^0-9]/g, '');
+      if (sanitized.length < 13 || sanitized.length > 19) {
+        return false;
+      }
+      let sum = 0;
+      let shouldDouble = false;
+      for (let i = sanitized.length - 1; i >= 0; i--) {
+        let digit = parseInt(sanitized.charAt(i), 10);
+        if (shouldDouble) {
+          digit *= 2;
+          if (digit > 9) digit -= 9;
+        }
+        sum += digit;
+        shouldDouble = !shouldDouble;
+      }
+      return sum % 10 === 0;
+    }
+    function formatCurrency(value) {
+      if (typeof value !== 'number' || !isFinite(value)) return '';
+      const formatter = new Intl.NumberFormat('en-GB', {
+        style: 'currency',
+        currency: 'GBP',
+        minimumFractionDigits: 2,
+      });
+      return formatter.format(value);
+    }
+    function App() {
+      const [name, setName] = React.useState('');
+      const [cardNumber, setCardNumber] = React.useState('');
+      const [limit, setLimit] = React.useState('');
+      const [errors, setErrors] = React.useState({});
+      const [cards, setCards] = React.useState([]);
+      const [isSubmitting, setIsSubmitting] = React.useState(false);
+      // Fetch existing cards on mount
+      React.useEffect(() => {
+        fetch('/cards')
+          .then((res) => res.json())
+          .then((data) => setCards(data))
+          .catch((err) => console.error(err));
+      }, []);
+      const validate = () => {
+        const newErrors = {};
+        if (!name.trim()) {
+          newErrors.name = 'Name is required.';
+        }
+        if (!cardNumber.trim()) {
+          newErrors.cardNumber = 'Card number is required.';
+        } else if (!/^[0-9\s-]+$/.test(cardNumber)) {
+          newErrors.cardNumber = 'Card number must contain only digits, spaces or dashes.';
+        } else if (!luhnCheck(cardNumber)) {
+          newErrors.cardNumber = 'Invalid card number.';
+        }
+        if (!limit.toString().trim()) {
+          newErrors.limit = 'Limit is required.';
+        } else if (Number.isNaN(Number(limit))) {
+          newErrors.limit = 'Limit must be a number.';
+        } else if (Number(limit) <= 0) {
+          newErrors.limit = 'Limit must be positive.';
+        }
+        return newErrors;
+      };
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const validationErrors = validate();
+        setErrors(validationErrors);
+        if (Object.keys(validationErrors).length > 0) return;
+        setIsSubmitting(true);
+        fetch('/cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            cardNumber: cardNumber.replace(/\s+/g, ''),
+            limit: Number(limit),
+          }),
+        })
+          .then(async (res) => {
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+              setErrors({ form: data || 'Failed to add card.' });
+              return;
+            }
+            setCards((prev) => [...prev, data]);
+            setName('');
+            setCardNumber('');
+            setLimit('');
+            setErrors({});
+          })
+          .catch((err) => {
+            setErrors({ form: 'Failed to add card.' });
+            console.error(err);
+          })
+          .finally(() => setIsSubmitting(false));
+      };
+      const validationErrors = validate();
+      //const isFormValid = Object.keys(validationErrors).length === 0;
+		const isFormComplete = name.trim() && cardNumber.trim() && limit.toString().trim();
+      return (
+        <div>
+          <h1>Credit Card System</h1>
+          <h2>Add</h2>
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="form-field">
+              <label htmlFor="name">Name</label>
+              <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+              {errors.name && <div className="error">{errors.name}</div>}
+            </div>
+            <div className="form-field">
+              <label htmlFor="cardNumber">Card number</label>
+              <input id="cardNumber" type="text" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} />
+              {errors.cardNumber && <div className="error">{errors.cardNumber}</div>}
+            </div>
+            <div className="form-field">
+              <label htmlFor="limit">Limit</label>
+              <input id="limit" type="number" value={limit} onChange={(e) => setLimit(e.target.value)} />
+              {errors.limit && <div className="error">{errors.limit}</div>}
+            </div>
+            {errors.form && <div className="error">{errors.form}</div>}
+            <button type="submit" disabled={isSubmitting || !isFormComplete}>
+              {isSubmitting ? 'Adding...' : 'Add'}
+            </button>
+          </form>
+          <h2>Existing Cards</h2>
+          {cards.length === 0 ? (
+            <p>No cards added yet.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Card Number</th>
+                  <th>Balance</th>
+                  <th>Limit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cards.map((card, index) => (
+                  <tr key={index}>
+                    <td>{card.name}</td>
+                    <td>{card.cardNumber}</td>
+                    <td className={!card.valid ? 'negative' : undefined}>
+                      {card.valid ? formatCurrency(card.balance) : 'Error'}
+                    </td>
+                    <td>{formatCurrency(card.limit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
