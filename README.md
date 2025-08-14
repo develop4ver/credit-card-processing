@@ -91,4 +91,4 @@ Additional tests (e.g. controller integration tests) can be added to further dem
 
 ## Summary
 
-This solution hand‑codes the Luhn algorithm, implements a simple in‑memory persistence layer and exposes a minimal REST API. The integrated React UI uses `fetch` to communicate with the backend and reflects the provided wireframe. Feel free to extend the functionality (e.g. adding charge/credit operations, persisting to a database) as an exercise.
+This solution hand‑codes the Luhn algorithm, implements a simple in‑memory persistence layer and exposes a minimal REST API. The integrated React UI uses `fetch` to communicate with the backend and reflects the provided wireframe. 
